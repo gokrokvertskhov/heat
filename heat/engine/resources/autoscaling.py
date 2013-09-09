@@ -65,6 +65,8 @@ class InstanceGroup(stack_resource.StackResource):
                    'Value': {'Type': 'String',
                              'Required': True}}
     properties_schema = {
+        'InstanceType': {'Required': False,
+                         'Type': 'String'},
         'AvailabilityZones': {'Required': True,
                               'Type': 'List'},
         'LaunchConfigurationName': {'Required': True,
@@ -193,7 +195,8 @@ class InstanceGroup(stack_resource.StackResource):
         conf_name = self.properties['LaunchConfigurationName']
         conf = self.stack.resource_by_refid(conf_name)
         instance_definition = copy.deepcopy(conf.t)
-        instance_definition['Type'] = 'AWS::EC2::Instance'
+        instance_definition['Type'] = self.properties.get('InstanceType',
+                                                          'AWS::EC2::Instance')
         instance_definition['Properties']['Tags'] = self._tags()
         if self.properties.get('VPCZoneIdentifier'):
             instance_definition['Properties']['SubnetId'] = \
