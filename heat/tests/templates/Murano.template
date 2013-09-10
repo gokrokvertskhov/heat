@@ -1,0 +1,121 @@
+{
+  "AWSTemplateFormatVersion" : "2010-09-09",
+
+  "Description" : "AWS CloudFormation Sample Template WordPress_Single_Instance: WordPress is web software you can use to create a beautiful website or blog. This template installs a single-instance WordPress deployment using a local MySQL database to store the data.",
+
+  "Parameters" : {
+
+    "KeyName" : {
+      "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+      "Type" : "String"
+    },
+
+    "InstanceType" : {
+      "Description" : "WebServer EC2 instance type",
+      "Type" : "String",
+      "Default" : "m1.large",
+      "AllowedValues" : [ "t1.micro", "m1.small", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge" ],
+      "ConstraintDescription" : "must be a valid EC2 instance type."
+    },
+
+ 
+    "LinuxDistribution": {
+      "Default": "F17",
+      "Description" : "Distribution of choice",
+      "Type": "String",
+      "AllowedValues" : [ "F18", "F17", "U10", "RHEL-6.1", "RHEL-6.2", "RHEL-6.3" ]
+    }
+  },
+
+
+
+  "Resources" : {
+  
+    "MuranoEnv":{
+      "Type": "OS::Murano::Environment",
+      "Properties": {
+        "EnvironmentID":"edc..."
+      }
+    },
+    
+    "MuranoIISCluster":{
+      "Type": "OS::Murano::Service",
+      "Properties": {
+        "ServiceId": "ecd.....",
+        "MuranoEnvironment": { "Ref": "MuranoEnv"}
+      }
+    },
+    
+     "ElasticLoadBalancer" : {
+      "Type" : "AWS::ElasticLoadBalancing::LoadBalancer",
+      "Properties" : {
+        "AvailabilityZones" : { "Fn::GetAZs" : "" },
+        "Listeners" : [ {
+          "LoadBalancerPort" : "80",
+          "InstancePort" : "80",
+          "Protocol" : "HTTP"
+        } ],
+        "HealthCheck" : {
+          "Target" : "HTTP:80/",
+          "HealthyThreshold" : "3",
+          "UnhealthyThreshold" : "5",
+          "Interval" : "30",
+          "Timeout" : "5"
+        }
+      }
+    },
+    
+    
+    "LaunchConfig" : {
+      "Type" : "OS::Murano::LaunchConfiguration",
+      "Properties": {
+        "ImageId" :  "SomeImage",
+        "InstanceType"   : "m1.large",
+        "KeyName"        : "murano-key",
+        "MuranoServiceId": { "Ref" : "MuranoIISCluster" }
+        }
+      }
+    
+   "WebServerGroup" : {
+      "Type" : "AWS::AutoScaling::AutoScalingGroup",
+      "Properties" : {
+        "InstanceType": "OS::Murano::ServiceUnit",
+        "AvailabilityZones" : { "Fn::GetAZs" : ""},
+        "LaunchConfigurationName" : { "Ref" : "LaunchConfig" },
+        "MinSize" : "1",
+        "MaxSize" : "3",
+        "LoadBalancerNames" : [ { "Ref" : "ElasticLoadBalancer" } ]
+      }
+    },    
+    
+    
+    "WebServerScaleUpPolicy" : {
+      "Type" : "AWS::AutoScaling::ScalingPolicy",
+      "Properties" : {
+        "AdjustmentType" : "ChangeInCapacity",
+        "AutoScalingGroupName" : { "Ref" : "WebServerGroup" },
+        "Cooldown" : "60",
+        "ScalingAdjustment" : "1"
+      }
+    },
+
+    "WebServerScaleDownPolicy" : {
+      "Type" : "AWS::AutoScaling::ScalingPolicy",
+      "Properties" : {
+        "AdjustmentType" : "ChangeInCapacity",
+        "AutoScalingGroupName" : { "Ref" : "WebServerGroup" },
+        "Cooldown" : "60",
+        "ScalingAdjustment" : "-1"
+      }
+    },
+    
+    
+
+
+  "Outputs" : {
+    "WebsiteURL" : {
+      "Value" : { "Fn::Join" : ["", ["http://", { "Fn::GetAtt" : [ "WikiDatabase", "PublicIp" ]}, "/wordpress"]] },
+      "Description" : "URL for Wordpress wiki"
+    }
+  }
+}
